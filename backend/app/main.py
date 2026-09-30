@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import engine, Base
 import app.models  # Register all models with Base
+from app.config import settings
 from app.routers import (
     auth,
     products,
@@ -31,7 +32,6 @@ app = FastAPI(
     version="2.0.0",
     contact={
         "name": "ShopWave Support",
-        "url": "http://localhost:5173",
     },
     license_info={
         "name": "MIT",
@@ -40,16 +40,13 @@ app = FastAPI(
 
 # ---------------------------------------------------------------------------
 # CORS Configuration
-# Allow frontend dev servers and previews
+# Origins are read from the CORS_ORIGINS env variable (comma-separated).
+# Development default: localhost:5173 / localhost:3000
+# Production: set CORS_ORIGINS=https://your-frontend.vercel.app in Vercel env
 # ---------------------------------------------------------------------------
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://localhost:3000",
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:3000",
-    ],
+    allow_origins=settings.cors_origins_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

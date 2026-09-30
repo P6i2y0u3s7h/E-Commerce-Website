@@ -1,6 +1,8 @@
 /** Enhanced site footer with rich links, social icons, and newsletter CTA. */
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
+
+const API_DOCS_URL = `${(import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/+$/, '')}/docs`;
 import { Zap, ExternalLink, Mail, ArrowRight, ShieldCheck, Truck, RefreshCw, Share2 } from 'lucide-react';
 
 export default function Footer() {
@@ -158,7 +160,7 @@ export default function Footer() {
             <ul className="space-y-2.5 text-sm">
               <li>
                 <a
-                  href="http://localhost:8000/docs"
+                  href={API_DOCS_URL}
                   target="_blank"
                   rel="noreferrer"
                   className="hover:text-white transition-colors"
@@ -180,7 +182,7 @@ export default function Footer() {
             <span className="text-slate-600">Privacy Policy</span>
             <span className="text-slate-600">Terms of Service</span>
             <a
-              href="http://localhost:8000/docs"
+              href={API_DOCS_URL}
               target="_blank"
               rel="noreferrer"
               className="hover:text-white transition-colors"

@@ -118,12 +118,10 @@ export default function HomePage() {
             <div className="text-center py-16">
               <p className="text-red-500 font-medium">{error}</p>
               <p className="text-slate-500 text-sm mt-1">
-                Make sure the backend server is running on{' '}
-                <code className="bg-slate-100 px-1.5 py-0.5 rounded">
-                  http://localhost:8000
-                </code>
+                Make sure the backend server is running and reachable.
               </p>
             </div>
+
           ) : featured.length === 0 ? (
             <div className="text-center py-16 card">
               <ShoppingBag className="w-12 h-12 text-slate-300 mx-auto mb-3" />

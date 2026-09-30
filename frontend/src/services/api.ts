@@ -2,6 +2,10 @@
  * Centralized API service layer.
  * All HTTP calls go through this file.
  * Automatically attaches JWT from localStorage to protected requests.
+ *
+ * API base URL is driven by the VITE_API_URL environment variable.
+ *   - Development: set VITE_API_URL in frontend/.env.local, or it falls back to http://localhost:8000
+ *   - Production:  set VITE_API_URL=https://your-backend.vercel.app in Vercel environment variables
  */
 import axios, { AxiosError } from 'axios';
 import type { AxiosInstance } from 'axios';
@@ -33,10 +37,16 @@ import type {
   AdminUser,
 } from '../types';
 
-const BASE_URL = 'http://localhost:8000';
+// ---------------------------------------------------------------------------
+// Base URL — driven by environment variable, never hardcoded
+// ---------------------------------------------------------------------------
+const rawBaseUrl =
+  import.meta.env.VITE_API_URL ||
+  (import.meta.env.DEV ? 'http://localhost:8000' : '');
+const BASE_URL = rawBaseUrl.replace(/\/+$/, '');
 
 // Create the Axios instance
-const apiClient: AxiosInstance = axios.create({
+export const apiClient: AxiosInstance = axios.create({
   baseURL: BASE_URL,
   headers: {
     'Content-Type': 'application/json',
@@ -91,28 +101,43 @@ export const authApi = {
     return response.data;
   },
 
-  updateProfile: async (data: { first_name?: string; last_name?: string; email?: string }): Promise<User> => {
+  getMe: async (): Promise<User> => {
+    const response = await apiClient.get<User>('/auth/me');
+    return response.data;
+  },
+
+  updateProfile: async (data: Partial<User>): Promise<User> => {
     const response = await apiClient.put<User>('/auth/profile', data);
     return response.data;
   },
 
-  changePassword: async (currentPassword: string, newPassword: string): Promise<{ message: string }> => {
-    const response = await apiClient.put<{ message: string }>('/auth/change-password', {
-      current_password: currentPassword,
-      new_password: newPassword,
-    });
+  // Called as: authApi.changePassword(currentPassword, newPassword)
+  changePassword: async (
+    current_password: string,
+    new_password: string
+  ): Promise<{ message: string }> => {
+    const response = await apiClient.put<{ message: string }>(
+      '/auth/change-password',
+      { current_password, new_password }
+    );
     return response.data;
   },
 
-  forgotPassword: async (email: string): Promise<{ message: string; reset_token?: string }> => {
+  forgotPassword: async (
+    email: string
+  ): Promise<{ message: string; reset_token?: string }> => {
     const response = await apiClient.post('/auth/forgot-password', { email });
     return response.data;
   },
 
-  resetPassword: async (token: string, newPassword: string): Promise<{ message: string }> => {
-    const response = await apiClient.post<{ message: string }>('/auth/reset-password', {
+  // Called as: authApi.resetPassword(token, newPassword)
+  resetPassword: async (
+    token: string,
+    new_password: string
+  ): Promise<{ message: string }> => {
+    const response = await apiClient.post('/auth/reset-password', {
       token,
-      new_password: newPassword,
+      new_password,
     });
     return response.data;
   },
@@ -122,50 +147,66 @@ export const authApi = {
 // Products API
 // ---------------------------------------------------------------------------
 
-export interface ProductQueryParams {
-  search?: string;
-  category?: string;
-  brand?: string;
-  min_price?: number;
-  max_price?: number;
-  in_stock?: boolean;
-  min_rating?: number;
-  sort?: string;
-  skip?: number;
-  limit?: number;
-}
-
 export const productsApi = {
-  getAll: async (params?: ProductQueryParams): Promise<Product[]> => {
-    const response = await apiClient.get<Product[]>('/products', {
-      params,
-    });
+  // Called as: productsApi.getAll(params?)
+  getAll: async (params?: {
+    search?: string;
+    category?: string;
+    brand?: string;
+    min_price?: number;
+    max_price?: number;
+    in_stock?: boolean;
+    min_rating?: number;
+    sort?: string;
+    skip?: number;
+    limit?: number;
+  }): Promise<Product[]> => {
+    const response = await apiClient.get<Product[]>('/products', { params });
     return response.data;
   },
 
+  // Called as: productsApi.getById(id)
   getById: async (id: number): Promise<Product> => {
     const response = await apiClient.get<Product>(`/products/${id}`);
     return response.data;
   },
 
-  getSuggestions: async (q: string): Promise<SearchSuggestion[]> => {
-    const response = await apiClient.get<SearchSuggestion[]>('/products/search/suggestions', {
-      params: { q },
-    });
-    return response.data;
-  },
-
   getFilterMeta: async (): Promise<FilterMeta> => {
-    const response = await apiClient.get<FilterMeta>('/products/meta/filters');
+    const response = await apiClient.get<FilterMeta>('/products/filter-meta');
     return response.data;
   },
 
-  getRecommendations: async (productId: number): Promise<ProductRecommendations> => {
-    const response = await apiClient.get<ProductRecommendations>(`/products/${productId}/recommendations`);
+  getSuggestions: async (q: string): Promise<SearchSuggestion[]> => {
+    const response = await apiClient.get<SearchSuggestion[]>(
+      '/products/search/suggestions',
+      { params: { q } }
+    );
+    return response.data;
+  },
+
+  searchSuggestions: async (q: string): Promise<SearchSuggestion[]> => {
+    const response = await apiClient.get<SearchSuggestion[]>(
+      '/products/search/suggestions',
+      { params: { q } }
+    );
+    return response.data;
+  },
+
+  getRecommendations: async (
+    productId: number
+  ): Promise<ProductRecommendations> => {
+    const response = await apiClient.get<ProductRecommendations>(
+      `/products/${productId}/recommendations`
+    );
     return response.data;
   },
 
   create: async (data: ProductCreate): Promise<Product> => {
+    const response = await apiClient.post<Product>('/products', data);
+    return response.data;
+  },
+
+  createProduct: async (data: ProductCreate): Promise<Product> => {
     const response = await apiClient.post<Product>('/products', data);
     return response.data;
   },
@@ -175,7 +216,16 @@ export const productsApi = {
     return response.data;
   },
 
+  updateProduct: async (id: number, data: ProductUpdate): Promise<Product> => {
+    const response = await apiClient.put<Product>(`/products/${id}`, data);
+    return response.data;
+  },
+
   delete: async (id: number): Promise<void> => {
+    await apiClient.delete(`/products/${id}`);
+  },
+
+  deleteProduct: async (id: number): Promise<void> => {
     await apiClient.delete(`/products/${id}`);
   },
 };
@@ -190,8 +240,22 @@ export const wishlistApi = {
     return response.data;
   },
 
+  getWishlist: async (): Promise<WishlistItem[]> => {
+    const response = await apiClient.get<WishlistItem[]>('/wishlist');
+    return response.data;
+  },
+
   add: async (productId: number): Promise<WishlistItem> => {
-    const response = await apiClient.post<WishlistItem>(`/wishlist/${productId}`);
+    const response = await apiClient.post<WishlistItem>(
+      `/wishlist/${productId}`
+    );
+    return response.data;
+  },
+
+  addToWishlist: async (productId: number): Promise<WishlistItem> => {
+    const response = await apiClient.post<WishlistItem>(
+      `/wishlist/${productId}`
+    );
     return response.data;
   },
 
@@ -199,8 +263,16 @@ export const wishlistApi = {
     await apiClient.delete(`/wishlist/${productId}`);
   },
 
-  check: async (productId: number): Promise<{ in_wishlist: boolean }> => {
-    const response = await apiClient.get<{ in_wishlist: boolean }>(`/wishlist/check/${productId}`);
+  removeFromWishlist: async (productId: number): Promise<void> => {
+    await apiClient.delete(`/wishlist/${productId}`);
+  },
+
+  checkWishlist: async (
+    productId: number
+  ): Promise<{ in_wishlist: boolean }> => {
+    const response = await apiClient.get<{ in_wishlist: boolean }>(
+      `/wishlist/check/${productId}`
+    );
     return response.data;
   },
 };
@@ -210,27 +282,40 @@ export const wishlistApi = {
 // ---------------------------------------------------------------------------
 
 export const reviewsApi = {
+  // Called as: reviewsApi.getByProduct(productId)
   getByProduct: async (productId: number): Promise<ReviewStats> => {
-    const response = await apiClient.get<ReviewStats>(`/products/${productId}/reviews`);
+    const response = await apiClient.get<ReviewStats>(
+      `/products/${productId}/reviews`
+    );
     return response.data;
   },
 
+  // Called as: reviewsApi.create(productId, data)
   create: async (productId: number, data: ReviewCreate): Promise<Review> => {
-    const response = await apiClient.post<Review>(`/products/${productId}/reviews`, data);
+    const response = await apiClient.post<Review>(
+      `/products/${productId}/reviews`,
+      data
+    );
     return response.data;
   },
 
-  update: async (reviewId: number, data: Partial<ReviewCreate>): Promise<Review> => {
+  // Called as: reviewsApi.update(reviewId, data)
+  update: async (
+    reviewId: number,
+    data: Partial<ReviewCreate>
+  ): Promise<Review> => {
     const response = await apiClient.put<Review>(`/reviews/${reviewId}`, data);
     return response.data;
   },
 
+  // Called as: reviewsApi.delete(reviewId)
   delete: async (reviewId: number): Promise<void> => {
     await apiClient.delete(`/reviews/${reviewId}`);
   },
 
+  // Called as: reviewsApi.getMyReviews()
   getMyReviews: async (): Promise<Review[]> => {
-    const response = await apiClient.get<Review[]>('/reviews/me');
+    const response = await apiClient.get<Review[]>('/reviews/my-reviews');
     return response.data;
   },
 };
@@ -240,27 +325,33 @@ export const reviewsApi = {
 // ---------------------------------------------------------------------------
 
 export const addressesApi = {
+  // Called as: addressesApi.getAll()
   getAll: async (): Promise<Address[]> => {
     const response = await apiClient.get<Address[]>('/addresses');
     return response.data;
   },
 
+  // Called as: addressesApi.create(data)
   create: async (data: AddressCreate): Promise<Address> => {
     const response = await apiClient.post<Address>('/addresses', data);
     return response.data;
   },
 
-  update: async (id: number, data: Partial<AddressCreate>): Promise<Address> => {
+  // Called as: addressesApi.update(id, data)
+  update: async (id: number, data: AddressCreate): Promise<Address> => {
     const response = await apiClient.put<Address>(`/addresses/${id}`, data);
     return response.data;
   },
 
+  // Called as: addressesApi.delete(id)
   delete: async (id: number): Promise<void> => {
     await apiClient.delete(`/addresses/${id}`);
   },
 
   setDefault: async (id: number): Promise<Address> => {
-    const response = await apiClient.patch<Address>(`/addresses/${id}/default`);
+    const response = await apiClient.patch<Address>(
+      `/addresses/${id}/default`
+    );
     return response.data;
   },
 };
@@ -270,15 +361,35 @@ export const addressesApi = {
 // ---------------------------------------------------------------------------
 
 export const couponsApi = {
-  validate: async (code: string, orderAmount: number): Promise<CouponValidation> => {
-    const response = await apiClient.post<CouponValidation>('/coupons/validate', {
-      code,
-      order_amount: orderAmount,
-    });
+  validate: async (
+    code: string,
+    order_amount: number
+  ): Promise<CouponValidation> => {
+    const response = await apiClient.post<CouponValidation>(
+      '/coupons/validate',
+      { code, order_amount }
+    );
     return response.data;
   },
 
+  validateCoupon: async (
+    code: string,
+    order_amount: number
+  ): Promise<CouponValidation> => {
+    const response = await apiClient.post<CouponValidation>(
+      '/coupons/validate',
+      { code, order_amount }
+    );
+    return response.data;
+  },
+
+  // Admin
   adminList: async (): Promise<Coupon[]> => {
+    const response = await apiClient.get<Coupon[]>('/coupons');
+    return response.data;
+  },
+
+  getCoupons: async (): Promise<Coupon[]> => {
     const response = await apiClient.get<Coupon[]>('/coupons');
     return response.data;
   },
@@ -288,7 +399,16 @@ export const couponsApi = {
     return response.data;
   },
 
+  createCoupon: async (data: CouponCreate): Promise<Coupon> => {
+    const response = await apiClient.post<Coupon>('/coupons', data);
+    return response.data;
+  },
+
   adminDelete: async (id: number): Promise<void> => {
+    await apiClient.delete(`/coupons/${id}`);
+  },
+
+  deleteCoupon: async (id: number): Promise<void> => {
     await apiClient.delete(`/coupons/${id}`);
   },
 };
@@ -298,26 +418,37 @@ export const couponsApi = {
 // ---------------------------------------------------------------------------
 
 export const ordersApi = {
-  create: async (data: OrderCreate): Promise<Order> => {
-    const response = await apiClient.post<Order>('/orders', data);
-    return response.data;
-  },
-
+  // Called as: ordersApi.getAll()
   getAll: async (): Promise<Order[]> => {
     const response = await apiClient.get<Order[]>('/orders');
     return response.data;
   },
 
+  // Called as: ordersApi.getById(id)
   getById: async (id: number): Promise<Order> => {
     const response = await apiClient.get<Order>(`/orders/${id}`);
     return response.data;
   },
 
+  // Called as: ordersApi.getTracking(id)
   getTracking: async (id: number): Promise<OrderTracking> => {
-    const response = await apiClient.get<OrderTracking>(`/orders/${id}/tracking`);
+    const response = await apiClient.get<OrderTracking>(
+      `/orders/${id}/tracking`
+    );
     return response.data;
   },
 
+  create: async (data: OrderCreate): Promise<Order> => {
+    const response = await apiClient.post<Order>('/orders', data);
+    return response.data;
+  },
+
+  createOrder: async (data: OrderCreate): Promise<Order> => {
+    const response = await apiClient.post<Order>('/orders', data);
+    return response.data;
+  },
+
+  // Called as: ordersApi.cancel(id)
   cancel: async (id: number): Promise<Order> => {
     const response = await apiClient.post<Order>(`/orders/${id}/cancel`);
     return response.data;
@@ -334,45 +465,43 @@ export const adminApi = {
     return response.data;
   },
 
-  getOrders: async (status?: OrderStatus, skip = 0, limit = 50): Promise<Order[]> => {
+  getUsers: async (): Promise<AdminUser[]> => {
+    const response = await apiClient.get<AdminUser[]>('/admin/users');
+    return response.data;
+  },
+
+  getOrders: async (status?: OrderStatus): Promise<Order[]> => {
     const response = await apiClient.get<Order[]>('/admin/orders', {
-      params: { status, skip, limit },
+      params: status ? { status } : undefined,
     });
     return response.data;
   },
 
-  updateOrderStatus: async (orderId: number, newStatus: OrderStatus): Promise<Order> => {
-    const response = await apiClient.patch<Order>(`/admin/orders/${orderId}/status`, {
-      status: newStatus,
-    });
+  updateOrderStatus: async (
+    orderId: number,
+    status: OrderStatus
+  ): Promise<Order> => {
+    const response = await apiClient.patch<Order>(
+      `/admin/orders/${orderId}/status`,
+      { status }
+    );
     return response.data;
   },
 
-  getUsers: async (skip = 0, limit = 50): Promise<AdminUser[]> => {
-    const response = await apiClient.get<AdminUser[]>('/admin/users', {
-      params: { skip, limit },
-    });
-    return response.data;
-  },
-
-  updateUserRole: async (userId: number, role: string, isActive?: boolean): Promise<{ message: string }> => {
-    const response = await apiClient.patch<{ message: string }>(`/admin/users/${userId}/role`, {
-      role,
-      is_active: isActive,
-    });
-    return response.data;
-  },
-
-  getLowStock: async (threshold = 10): Promise<Product[]> => {
-    const response = await apiClient.get<Product[]>('/admin/inventory/low-stock', {
-      params: { threshold },
-    });
+  updateUserRole: async (
+    userId: number,
+    role: string
+  ): Promise<{ message: string }> => {
+    const response = await apiClient.patch<{ message: string }>(
+      `/admin/users/${userId}/role`,
+      { role }
+    );
     return response.data;
   },
 };
 
 // ---------------------------------------------------------------------------
-// Helper: Extract error message from API error
+// Error helper
 // ---------------------------------------------------------------------------
 
 export function getErrorMessage(error: unknown): string {
@@ -385,5 +514,3 @@ export function getErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
   return 'An unexpected error occurred.';
 }
-
-export default apiClient;

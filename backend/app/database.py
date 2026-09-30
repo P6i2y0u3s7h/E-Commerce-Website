@@ -10,16 +10,20 @@ from app.config import settings
 
 # Create the SQLAlchemy engine
 # For SQLite, we need connect_args to allow multi-threading
-if settings.DATABASE_URL.startswith("sqlite"):
+db_url = settings.DATABASE_URL
+if db_url.startswith("postgres://"):
+    db_url = db_url.replace("postgres://", "postgresql://", 1)
+
+if db_url.startswith("sqlite"):
     engine = create_engine(
-        settings.DATABASE_URL,
+        db_url,
         connect_args={"check_same_thread": False},
         echo=False,  # Set to True to see SQL queries in logs
     )
 else:
     # PostgreSQL or other databases
     engine = create_engine(
-        settings.DATABASE_URL,
+        db_url,
         echo=False,
     )
 
