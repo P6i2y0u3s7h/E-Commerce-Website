@@ -13,7 +13,7 @@ parent_dir = os.path.dirname(current_dir)
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
-from fastapi import FastAPI
+from fastapi import FastAPI, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import engine, Base
@@ -80,7 +80,8 @@ app.add_middleware(
 )
 
 # ---------------------------------------------------------------------------
-# Include Routers
+# Include Routers — mounted at root (/auth/*, /products/*)
+# and also under /api (/api/auth/*, /api/products/*) for flexible proxying
 # ---------------------------------------------------------------------------
 app.include_router(auth.router)
 app.include_router(products.router)
@@ -91,8 +92,20 @@ app.include_router(addresses.router)
 app.include_router(coupons.router)
 app.include_router(admin.router)
 
+api_router = APIRouter(prefix="/api")
+api_router.include_router(auth.router)
+api_router.include_router(products.router)
+api_router.include_router(orders.router)
+api_router.include_router(wishlist.router)
+api_router.include_router(reviews.router)
+api_router.include_router(addresses.router)
+api_router.include_router(coupons.router)
+api_router.include_router(admin.router)
+app.include_router(api_router)
+
 
 @app.get("/health", tags=["Health"])
+@app.get("/api/health", tags=["Health"])
 def health():
     """Health check endpoint — confirms the API is running (no auth required)."""
     return {"status": "ok"}

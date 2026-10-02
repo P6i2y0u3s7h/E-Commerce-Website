@@ -17,8 +17,8 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
     # CORS — comma-separated list of allowed frontend origins.
-    # Example: CORS_ORIGINS=https://shopwave.vercel.app,https://www.shopwave.com
-    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:3000"
+    # Example: CORS_ORIGINS=https://e-commerce-website-6qq9.vercel.app,https://shopwave.vercel.app
+    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:3000,https://e-commerce-website-6qq9.vercel.app"
 
     # Admin creation defaults (override via .env)
     ADMIN_USERNAME: str = "admin"
@@ -31,8 +31,15 @@ class Settings(BaseSettings):
     def cors_origins_list(self) -> List[str]:
         """Parse the comma-separated CORS_ORIGINS string into a list without trailing slashes."""
         origins = [origin.strip().rstrip("/") for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
-        # Always allow local dev origins so local testing doesn't break
-        for dev_url in ["http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173", "http://127.0.0.1:3000"]:
+        # Always allow local dev origins and deployed frontend
+        default_origins = [
+            "http://localhost:5173",
+            "http://localhost:3000",
+            "http://127.0.0.1:5173",
+            "http://127.0.0.1:3000",
+            "https://e-commerce-website-6qq9.vercel.app",
+        ]
+        for dev_url in default_origins:
             if dev_url not in origins:
                 origins.append(dev_url)
         return origins

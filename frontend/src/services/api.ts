@@ -45,6 +45,14 @@ const rawBaseUrl =
   (import.meta.env.DEV ? 'http://localhost:8000' : '');
 const BASE_URL = rawBaseUrl.replace(/\/+$/, '');
 
+if (!BASE_URL && typeof window !== 'undefined' && !import.meta.env.DEV) {
+  console.warn(
+    '[ShopWave API] Warning: VITE_API_URL is unset in production. ' +
+    'Requests are falling back to the current domain, which causes HTTP 405 on static Vercel hosts. ' +
+    'Configure VITE_API_URL in your Vercel Frontend Project Settings -> Environment Variables.'
+  );
+}
+
 // Create the Axios instance
 export const apiClient: AxiosInstance = axios.create({
   baseURL: BASE_URL,
@@ -65,7 +73,7 @@ apiClient.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response interceptor: Handle 401s (token expiry)
+// Response interceptor: Handle 401s (token expiry) & 405s (misconfigured API URL)
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -76,6 +84,11 @@ apiClient.interceptors.response.use(
         // Notify AuthContext to clear user state
         window.dispatchEvent(new Event('auth:logout'));
       }
+    } else if (error.response?.status === 405 && !BASE_URL) {
+      console.error(
+        `[ShopWave API] Request to "${error.config?.url}" failed with 405 Method Not Allowed. ` +
+        `Root cause: VITE_API_URL is missing in Vercel Frontend environment variables, causing requests to be sent to the static frontend host.`
+      );
     }
     return Promise.reject(error);
   }
