@@ -40,9 +40,23 @@ import type {
 // ---------------------------------------------------------------------------
 // Base URL — driven by environment variable, never hardcoded
 // ---------------------------------------------------------------------------
-const rawBaseUrl =
-  import.meta.env.VITE_API_URL ||
-  (import.meta.env.DEV ? 'http://localhost:8000' : '');
+let rawBaseUrl = (import.meta.env.VITE_API_URL || '').trim();
+
+// In local development, fall back to localhost:8000 if unset
+if (!rawBaseUrl && import.meta.env.DEV) {
+  rawBaseUrl = 'http://localhost:8000';
+}
+
+// Automatically ensure protocol scheme (https:// or http://) is present.
+// Prevents browser "Network Error" when users configure VITE_API_URL without https://
+if (rawBaseUrl && !rawBaseUrl.startsWith('http://') && !rawBaseUrl.startsWith('https://')) {
+  if (rawBaseUrl.includes('localhost') || rawBaseUrl.includes('127.0.0.1')) {
+    rawBaseUrl = `http://${rawBaseUrl}`;
+  } else {
+    rawBaseUrl = `https://${rawBaseUrl}`;
+  }
+}
+
 const BASE_URL = rawBaseUrl.replace(/\/+$/, '');
 
 if (!BASE_URL && typeof window !== 'undefined' && !import.meta.env.DEV) {

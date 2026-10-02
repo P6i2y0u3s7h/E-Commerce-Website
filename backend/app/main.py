@@ -48,6 +48,32 @@ async def lifespan(app: FastAPI):
     yield
 
 
+class VercelPathMiddleware:
+    """
+    Middleware for Vercel serverless rewrites:
+    When Vercel rewrites incoming traffic to /api/index.py, the ASGI scope['path']
+    is set to '/api/index.py' while the true requested path is stored in the
+    'x-matched-path' or 'x-forwarded-uri' request header (e.g. '/auth/login', '/health').
+    This middleware restores scope['path'] so FastAPI matches the correct route.
+    """
+    def __init__(self, app, **kwargs):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] in ("http", "websocket"):
+            headers = dict(scope.get("headers", []))
+            matched_path = headers.get(b"x-matched-path", b"").decode("utf-8")
+            if not matched_path:
+                matched_path = headers.get(b"x-forwarded-uri", b"").decode("utf-8")
+
+            if matched_path:
+                clean_path = matched_path.split("?")[0]
+                scope["path"] = clean_path
+                scope["raw_path"] = clean_path.encode("utf-8")
+
+        await self.app(scope, receive, send)
+
+
 app = FastAPI(
     title="ShopWave E-Commerce API",
     description=(
@@ -66,14 +92,15 @@ app = FastAPI(
 )
 
 # ---------------------------------------------------------------------------
-# CORS Configuration
-# Origins are read from the CORS_ORIGINS env variable (comma-separated).
-# Development default: localhost:5173 / localhost:3000
-# Production: set CORS_ORIGINS=https://your-frontend.vercel.app in Vercel env
+# Middlewares
+# 1. VercelPathMiddleware: restores true path from Vercel's rewrite header
+# 2. CORSMiddleware: allows local development + all Vercel domains via regex
 # ---------------------------------------------------------------------------
+app.add_middleware(VercelPathMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
+    allow_origin_regex=r"^https://.*\.vercel\.app$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

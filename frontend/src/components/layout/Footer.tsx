@@ -2,7 +2,17 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 
-const API_DOCS_URL = `${(import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/+$/, '')}/docs`;
+const getApiDocsUrl = () => {
+  let url = (import.meta.env.VITE_API_URL || '').trim();
+  if (url && !url.startsWith('http://') && !url.startsWith('https://')) {
+    url = `https://${url}`;
+  }
+  if (!url) {
+    return import.meta.env.DEV ? 'http://localhost:8000/docs' : '/docs';
+  }
+  return `${url.replace(/\/+$/, '')}/docs`;
+};
+const API_DOCS_URL = getApiDocsUrl();
 import { Zap, ExternalLink, Mail, ArrowRight, ShieldCheck, Truck, RefreshCw, Share2 } from 'lucide-react';
 
 export default function Footer() {
