@@ -42,8 +42,20 @@ import type {
 // ---------------------------------------------------------------------------
 let rawBaseUrl = (import.meta.env.VITE_API_URL || '').trim();
 
-// In local development, fall back to localhost:8000 if unset
-if (!rawBaseUrl && import.meta.env.DEV) {
+// Detect local environment (both Vite dev server :5173 and Vite preview server :4173)
+const isLocalhost =
+  typeof window !== 'undefined' &&
+  (window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1' ||
+    window.location.hostname === '0.0.0.0');
+
+const isPlaceholder =
+  !rawBaseUrl ||
+  rawBaseUrl.includes('your-backend-api.vercel.app') ||
+  rawBaseUrl.includes('example.com');
+
+// Fall back to local FastAPI server when running locally in dev or preview mode
+if (isPlaceholder && (import.meta.env.DEV || isLocalhost)) {
   rawBaseUrl = 'http://localhost:8000';
 }
 
