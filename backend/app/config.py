@@ -29,8 +29,13 @@ class Settings(BaseSettings):
 
     @property
     def cors_origins_list(self) -> List[str]:
-        """Parse the comma-separated CORS_ORIGINS string into a list."""
-        return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
+        """Parse the comma-separated CORS_ORIGINS string into a list without trailing slashes."""
+        origins = [origin.strip().rstrip("/") for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
+        # Always allow local dev origins so local testing doesn't break
+        for dev_url in ["http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173", "http://127.0.0.1:3000"]:
+            if dev_url not in origins:
+                origins.append(dev_url)
+        return origins
 
     class Config:
         env_file = ".env"

@@ -1,7 +1,18 @@
 """
 FastAPI application entry point.
-Configures CORS, includes all modular routers, and creates database tables on startup.
+Configures CORS, includes all modular routers, and initializes database tables safely.
 """
+import logging
+import os
+import sys
+from contextlib import asynccontextmanager
+
+# Ensure backend root directory is in sys.path so 'app.*' imports resolve cleanly
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -19,8 +30,23 @@ from app.routers import (
     admin,
 )
 
-# Create all database tables (safe to call multiple times)
-Base.metadata.create_all(bind=engine)
+logger = logging.getLogger("uvicorn.error")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Application lifespan handler.
+    Initializes database tables during server startup rather than at module import.
+    Gracefully catches errors to avoid crashing serverless cold starts.
+    """
+    try:
+        Base.metadata.create_all(bind=engine)
+        logger.info("Database tables verified/created successfully.")
+    except Exception as exc:
+        logger.warning("Could not auto-create database tables on startup: %s", exc)
+    yield
+
 
 app = FastAPI(
     title="ShopWave E-Commerce API",
@@ -30,6 +56,7 @@ app = FastAPI(
         "order management, reviews, wishlist, addresses, coupons, and admin analytics."
     ),
     version="2.0.0",
+    lifespan=lifespan,
     contact={
         "name": "ShopWave Support",
     },
@@ -65,9 +92,15 @@ app.include_router(coupons.router)
 app.include_router(admin.router)
 
 
+@app.get("/health", tags=["Health"])
+def health():
+    """Health check endpoint — confirms the API is running (no auth required)."""
+    return {"status": "ok"}
+
+
 @app.get("/", tags=["Health"])
 def health_check():
-    """Health check endpoint — confirms the API is running."""
+    """Root endpoint — confirms the API is running."""
     return {
         "status": "ok",
         "message": "ShopWave API v2.0 is running.",
