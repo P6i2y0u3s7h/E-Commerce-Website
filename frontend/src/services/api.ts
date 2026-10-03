@@ -38,8 +38,10 @@ import type {
 } from '../types';
 
 // ---------------------------------------------------------------------------
-// Base URL — driven by environment variable, never hardcoded
+// Base URL — driven by environment variable, never falls back to frontend origin
 // ---------------------------------------------------------------------------
+const PRODUCTION_BACKEND_URL = 'https://e-commerce-website-one-phi-12.vercel.app';
+
 let rawBaseUrl = (import.meta.env.VITE_API_URL || '').trim();
 
 // Detect local environment (both Vite dev server :5173 and Vite preview server :4173)
@@ -57,6 +59,10 @@ const isPlaceholder =
 // Fall back to local FastAPI server when running locally in dev or preview mode
 if (isPlaceholder && (import.meta.env.DEV || isLocalhost)) {
   rawBaseUrl = 'http://localhost:8000';
+} else if (isPlaceholder) {
+  // In production, strictly point to the deployed FastAPI backend.
+  // Never fall back to window.location.origin or relative path.
+  rawBaseUrl = PRODUCTION_BACKEND_URL;
 }
 
 // Automatically ensure protocol scheme (https:// or http://) is present.
@@ -69,15 +75,7 @@ if (rawBaseUrl && !rawBaseUrl.startsWith('http://') && !rawBaseUrl.startsWith('h
   }
 }
 
-const BASE_URL = rawBaseUrl.replace(/\/+$/, '');
-
-if (!BASE_URL && typeof window !== 'undefined' && !import.meta.env.DEV) {
-  console.warn(
-    '[ShopWave API] Warning: VITE_API_URL is unset in production. ' +
-    'Requests are falling back to the current domain, which causes HTTP 405 on static Vercel hosts. ' +
-    'Configure VITE_API_URL in your Vercel Frontend Project Settings -> Environment Variables.'
-  );
-}
+const BASE_URL = (rawBaseUrl || PRODUCTION_BACKEND_URL).replace(/\/+$/, '');
 
 // Create the Axios instance
 export const apiClient: AxiosInstance = axios.create({
@@ -86,6 +84,7 @@ export const apiClient: AxiosInstance = axios.create({
     'Content-Type': 'application/json',
   },
 });
+
 
 // Request interceptor: Attach JWT token if present in localStorage
 apiClient.interceptors.request.use(

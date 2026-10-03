@@ -52,9 +52,9 @@ class VercelPathMiddleware:
     """
     Middleware for Vercel serverless rewrites:
     When Vercel rewrites incoming traffic to /api/index.py, the ASGI scope['path']
-    is set to '/api/index.py' while the true requested path is stored in the
-    'x-matched-path' or 'x-forwarded-uri' request header (e.g. '/auth/login', '/health').
-    This middleware restores scope['path'] so FastAPI matches the correct route.
+    is often set to '/api/index.py' while the client's actual requested path is in
+    'x-forwarded-uri', 'x-original-uri', or 'x-invoke-path'.
+    This middleware restores scope['path'] and query parameters so FastAPI matches the correct route.
     """
     def __init__(self, app, **kwargs):
         self.app = app
@@ -62,16 +62,42 @@ class VercelPathMiddleware:
     async def __call__(self, scope, receive, send):
         if scope["type"] in ("http", "websocket"):
             headers = dict(scope.get("headers", []))
-            matched_path = headers.get(b"x-matched-path", b"").decode("utf-8")
-            if not matched_path:
-                matched_path = headers.get(b"x-forwarded-uri", b"").decode("utf-8")
-
-            if matched_path:
-                clean_path = matched_path.split("?")[0]
-                scope["path"] = clean_path
-                scope["raw_path"] = clean_path.encode("utf-8")
+            
+            # Check headers that Vercel uses to carry the client's original requested URI
+            candidates = [
+                headers.get(b"x-forwarded-uri", b"").decode("utf-8"),
+                headers.get(b"x-original-uri", b"").decode("utf-8"),
+                headers.get(b"x-invoke-path", b"").decode("utf-8"),
+                headers.get(b"x-matched-path", b"").decode("utf-8"),
+            ]
+            
+            chosen_path = None
+            query_str = None
+            for cand in candidates:
+                if cand:
+                    parts = cand.split("?", 1)
+                    clean = parts[0].strip()
+                    # Ignore internal serverless file destinations (e.g. /api/index.py)
+                    if clean and not clean.startswith("/api/index") and not clean.endswith(".py"):
+                        chosen_path = clean
+                        if len(parts) > 1:
+                            query_str = parts[1]
+                        break
+            
+            if not chosen_path:
+                current_path = scope.get("path", "")
+                if current_path and not current_path.startswith("/api/index") and not current_path.endswith(".py"):
+                    chosen_path = current_path
+            
+            if chosen_path:
+                scope["path"] = chosen_path
+                scope["raw_path"] = chosen_path.encode("utf-8")
+            
+            if query_str and not scope.get("query_string"):
+                scope["query_string"] = query_str.encode("utf-8")
 
         await self.app(scope, receive, send)
+
 
 
 app = FastAPI(
@@ -139,6 +165,8 @@ def health():
 
 
 @app.get("/", tags=["Health"])
+@app.get("/api/index.py", tags=["Health"], include_in_schema=False)
+@app.get("/api/index", tags=["Health"], include_in_schema=False)
 def health_check():
     """Root endpoint — confirms the API is running."""
     return {
@@ -146,3 +174,4 @@ def health_check():
         "message": "ShopWave API v2.0 is running.",
         "docs": "/docs",
     }
+

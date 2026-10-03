@@ -8,11 +8,12 @@ const getApiDocsUrl = () => {
     url = `https://${url}`;
   }
   if (!url) {
-    return import.meta.env.DEV ? 'http://localhost:8000/docs' : '/docs';
+    return import.meta.env.DEV ? 'http://localhost:8000/docs' : 'https://e-commerce-website-one-phi-12.vercel.app/docs';
   }
   return `${url.replace(/\/+$/, '')}/docs`;
 };
 const API_DOCS_URL = getApiDocsUrl();
+
 import { Zap, ExternalLink, Mail, ArrowRight, ShieldCheck, Truck, RefreshCw, Share2 } from 'lucide-react';
 
 export default function Footer() {
