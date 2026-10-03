@@ -52,51 +52,63 @@ class VercelPathMiddleware:
     """
     Middleware for Vercel serverless rewrites:
     When Vercel rewrites incoming traffic to /api/index.py, the ASGI scope['path']
-    is often set to '/api/index.py' while the client's actual requested path is in
-    'x-forwarded-uri', 'x-original-uri', or 'x-invoke-path'.
-    This middleware restores scope['path'] and query parameters so FastAPI matches the correct route.
+    is set to '/api/index.py'. The rewrite rule forwards the original path via
+    '?__path__=/$1' or via request headers.
+    This middleware restores scope['path'] and cleans the query string so FastAPI matches the correct route.
     """
     def __init__(self, app, **kwargs):
         self.app = app
 
     async def __call__(self, scope, receive, send):
         if scope["type"] in ("http", "websocket"):
-            headers = dict(scope.get("headers", []))
-            
-            # Check headers that Vercel uses to carry the client's original requested URI
-            candidates = [
-                headers.get(b"x-forwarded-uri", b"").decode("utf-8"),
-                headers.get(b"x-original-uri", b"").decode("utf-8"),
-                headers.get(b"x-invoke-path", b"").decode("utf-8"),
-                headers.get(b"x-matched-path", b"").decode("utf-8"),
-            ]
+            query_bytes = scope.get("query_string", b"")
+            query_str = query_bytes.decode("utf-8", errors="ignore")
             
             chosen_path = None
-            query_str = None
-            for cand in candidates:
-                if cand:
-                    parts = cand.split("?", 1)
-                    clean = parts[0].strip()
-                    # Ignore internal serverless file destinations (e.g. /api/index.py)
-                    if clean and not clean.startswith("/api/index") and not clean.endswith(".py"):
-                        chosen_path = clean
-                        if len(parts) > 1:
-                            query_str = parts[1]
-                        break
-            
+            if "__path__=" in query_str:
+                import urllib.parse
+                parsed = urllib.parse.parse_qs(query_str)
+                if "__path__" in parsed:
+                    raw_val = parsed.pop("__path__")[0]
+                    if raw_val:
+                        if not raw_val.startswith("/"):
+                            raw_val = "/" + raw_val
+                        chosen_path = raw_val.split("?")[0]
+                        # Re-encode remaining query string without __path__
+                        remaining_qs = urllib.parse.urlencode(parsed, doseq=True)
+                        scope["query_string"] = remaining_qs.encode("utf-8")
+
+            if not chosen_path:
+                headers = dict(scope.get("headers", []))
+                candidates = [
+                    headers.get(b"x-forwarded-uri", b"").decode("utf-8", errors="ignore"),
+                    headers.get(b"x-original-uri", b"").decode("utf-8", errors="ignore"),
+                    headers.get(b"x-invoke-path", b"").decode("utf-8", errors="ignore"),
+                    headers.get(b"x-matched-path", b"").decode("utf-8", errors="ignore"),
+                ]
+                for cand in candidates:
+                    if cand:
+                        parts = cand.split("?", 1)
+                        clean = parts[0].strip()
+                        if clean and not clean.startswith("/api/index") and not clean.endswith(".py"):
+                            chosen_path = clean
+                            if len(parts) > 1 and not scope.get("query_string"):
+                                scope["query_string"] = parts[1].encode("utf-8")
+                            break
+
             if not chosen_path:
                 current_path = scope.get("path", "")
                 if current_path and not current_path.startswith("/api/index") and not current_path.endswith(".py"):
                     chosen_path = current_path
-            
+
             if chosen_path:
+                if not chosen_path.startswith("/"):
+                    chosen_path = "/" + chosen_path
                 scope["path"] = chosen_path
                 scope["raw_path"] = chosen_path.encode("utf-8")
-            
-            if query_str and not scope.get("query_string"):
-                scope["query_string"] = query_str.encode("utf-8")
 
         await self.app(scope, receive, send)
+
 
 
 
@@ -164,22 +176,16 @@ def health():
     return {"status": "ok"}
 
 
-from fastapi import Request
-
 @app.get("/", tags=["Health"])
 @app.get("/api/index.py", tags=["Health"], include_in_schema=False)
 @app.get("/api/index", tags=["Health"], include_in_schema=False)
-def health_check(request: Request):
+def health_check():
     """Root endpoint — confirms the API is running."""
-    # Collect all headers and relevant scope keys for diagnostics
-    header_dict = dict(request.headers)
     return {
         "status": "ok",
         "message": "ShopWave API v2.0 is running.",
         "docs": "/docs",
-        "debug_scope_path": request.scope.get("path"),
-        "debug_headers": header_dict,
-        "debug_scope_keys": [k for k in request.scope.keys() if k != "app"],
     }
+
 
 
