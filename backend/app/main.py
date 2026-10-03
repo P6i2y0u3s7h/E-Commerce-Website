@@ -43,6 +43,18 @@ async def lifespan(app: FastAPI):
     try:
         Base.metadata.create_all(bind=engine)
         logger.info("Database tables verified/created successfully.")
+
+        # Ensure database is seeded with initial products if table is empty
+        try:
+            from app.database import SessionLocal
+            from app.models import Product
+            with SessionLocal() as seed_session:
+                if seed_session.query(Product).count() == 0:
+                    logger.info("Database is empty. Running initial catalog seeding...")
+                    from populate_db import seed_database
+                    seed_database()
+        except Exception as seed_err:
+            logger.warning("Auto-seed check notice: %s", seed_err)
     except Exception as exc:
         logger.warning("Could not auto-create database tables on startup: %s", exc)
     yield
@@ -173,7 +185,10 @@ app.include_router(api_router)
 @app.get("/api/health", tags=["Health"])
 def health():
     """Health check endpoint — confirms the API is running (no auth required)."""
-    return {"status": "ok"}
+    return {
+        "status": "ok",
+        "database": getattr(engine.url, "drivername", "sqlite"),
+    }
 
 
 @app.get("/", tags=["Health"])

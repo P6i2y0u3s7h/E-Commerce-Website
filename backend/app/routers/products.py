@@ -61,6 +61,11 @@ def get_search_suggestions(
 
 
 @router.get(
+    "/filter-meta",
+    response_model=FilterMetaResponse,
+    summary="Get available categories, brands, and price boundaries (alias)",
+)
+@router.get(
     "/meta/filters",
     response_model=FilterMetaResponse,
     summary="Get available categories, brands, and price boundaries",

@@ -210,7 +210,7 @@ export const productsApi = {
   },
 
   getFilterMeta: async (): Promise<FilterMeta> => {
-    const response = await apiClient.get<FilterMeta>('/products/filter-meta');
+    const response = await apiClient.get<FilterMeta>('/products/meta/filters');
     return response.data;
   },
 

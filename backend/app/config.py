@@ -11,7 +11,10 @@ class Settings(BaseSettings):
     Application settings loaded from environment variables.
     All values can be overridden via a .env file.
     """
-    DATABASE_URL: str = "sqlite:///./ecommerce.db"
+    DATABASE_URL: str = (
+        "postgresql://postgres.lwajqbrqnmcjgjewrwdy:Piyush%4062032"
+        "@aws-0-ap-south-1.pooler.supabase.com:6543/postgres?sslmode=require"
+    )
     SECRET_KEY: str = "change-this-to-a-very-long-random-secret-key-in-production"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30

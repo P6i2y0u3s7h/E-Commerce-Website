@@ -20,6 +20,13 @@ if db_url.startswith("postgres://"):
     # Fix Heroku / Supabase / Neon legacy postgres:// schema for SQLAlchemy
     db_url = db_url.replace("postgres://", "postgresql://", 1)
 
+# Ensure IPv4 compatibility for Supabase in serverless environments (AWS Lambda / Vercel lack direct IPv6 routing)
+if "db.lwajqbrqnmcjgjewrwdy.supabase.co" in db_url:
+    db_url = db_url.replace("db.lwajqbrqnmcjgjewrwdy.supabase.co:5432", "aws-0-ap-south-1.pooler.supabase.com:6543")
+    db_url = db_url.replace("db.lwajqbrqnmcjgjewrwdy.supabase.co", "aws-0-ap-south-1.pooler.supabase.com:6543")
+    if "://postgres:" in db_url:
+        db_url = db_url.replace("://postgres:", "://postgres.lwajqbrqnmcjgjewrwdy:")
+
 # Check if running in a serverless environment (e.g., Vercel)
 is_serverless = bool(os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
 
