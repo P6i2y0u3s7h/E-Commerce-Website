@@ -164,14 +164,22 @@ def health():
     return {"status": "ok"}
 
 
+from fastapi import Request
+
 @app.get("/", tags=["Health"])
 @app.get("/api/index.py", tags=["Health"], include_in_schema=False)
 @app.get("/api/index", tags=["Health"], include_in_schema=False)
-def health_check():
+def health_check(request: Request):
     """Root endpoint — confirms the API is running."""
+    # Collect all headers and relevant scope keys for diagnostics
+    header_dict = dict(request.headers)
     return {
         "status": "ok",
         "message": "ShopWave API v2.0 is running.",
         "docs": "/docs",
+        "debug_scope_path": request.scope.get("path"),
+        "debug_headers": header_dict,
+        "debug_scope_keys": [k for k in request.scope.keys() if k != "app"],
     }
+
 
